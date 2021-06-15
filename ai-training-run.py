@@ -29,7 +29,7 @@ def ai_training_run(
     validation_step_model_volume_mountpoint: str = "/mnt/model",
 ) :
     # Set GPU limits; Due to SDK limitations, this must be hardcoded
-    train_step_num_gpu = 0
+    train_step_num_gpu = 1
     validation_step_num_gpu = 0
 
     # Pipeline Steps:
@@ -77,8 +77,8 @@ def ai_training_run(
             python3 -m pip install pandas && \
             git clone https://github.com/yshimizu37/image_classification.git && \
             chmod -R 755 image_classification &&  \
-            echo '" + str(train_step_model_volume_mountpoint) + "/history.csv" + "' > /model_history.txt && \
-            python3 ./image_classification/train.py -datadir " + str(data_prep_step_dataset_volume_mountpoint) + "/cats_and_dogs_filtered --modeldir " + str(train_step_model_volume_mountpoint) + " --batchsize " + str(train_step_batch_size) + " --epochs " + str(train_step_epochs)],
+            echo '" + str(train_step_model_volume_mountpoint) + "/history.csv" + "' > /model_history_path.txt && \
+            python3 ./image_classification/train.py --datadir " + str(data_prep_step_dataset_volume_mountpoint) + "/cats_and_dogs_filtered --modeldir " + str(train_step_model_volume_mountpoint) + " --batchsize " + str(train_step_batch_size) + " --epochs " + str(train_step_epochs)],
         file_outputs={
             # "model_path": "/model_path.txt",
             # "model_weights_path": "/model_weights_path.txt",
@@ -122,7 +122,7 @@ def ai_training_run(
         image=validation_step_container_image,
         command=["sh", "-c"],
         arguments=["\
-            python3 -m pip install pandas && \
+            python3 -m pip install pandas matplotlib && \
             git clone https://github.com/yshimizu37/image_classification.git && \
             chmod -R 755 image_classification &&  \
             python3 ./image_classification/validation.py --modeldir " + str(train_step_model_volume_mountpoint) + " --epochs=" + str(train_step_epochs)],
