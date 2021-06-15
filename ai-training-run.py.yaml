@@ -2,7 +2,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
   generateName: ai-training-run-
-  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.6.3, pipelines.kubeflow.org/pipeline_compilation_time: '2021-06-15T21:07:47.804245',
+  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.6.3, pipelines.kubeflow.org/pipeline_compilation_time: '2021-06-15T21:45:07.524956',
     pipelines.kubeflow.org/pipeline_spec: '{"description": "Template for executing
       an AI training run with built-in training dataset traceability and trained model
       versioning", "inputs": [{"default": "dataset-vol", "name": "dataset_volume_pvc_existing",
@@ -197,10 +197,10 @@ spec:
       persistentVolumeClaim: {claimName: '{{inputs.parameters.trained_model_volume_pvc_existing}}'}
   - name: validate-model
     container:
-      args: ['            python3 -m pip install pandas &&             git clone https://github.com/yshimizu37/image_classification.git
-          &&             chmod -R 755 image_classification &&              python3
-          ./image_classification/validation.py --modeldir {{inputs.parameters.train_step_model_volume_mountpoint}}
-          --epochs={{inputs.parameters.train_step_epochs}}']
+      args: ['            python3 -m pip install pandas matplotlib &&             git
+          clone https://github.com/yshimizu37/image_classification.git &&             chmod
+          -R 755 image_classification &&              python3 ./image_classification/validation.py
+          --modeldir {{inputs.parameters.train_step_model_volume_mountpoint}} --epochs={{inputs.parameters.train_step_epochs}}']
       command: [sh, -c]
       image: '{{inputs.parameters.validation_step_container_image}}'
       volumeMounts:

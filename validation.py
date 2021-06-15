@@ -7,6 +7,7 @@ def display_valid_data(model_dir, epochs):
 
     history_path = os.path.join(model_dir, 'history.csv')
     history = pd.read_csv(history_path, encoding = 'UTF8')
+    print(history)
 
     acc = history['accuracy']
     val_acc = history['val_accuracy']
