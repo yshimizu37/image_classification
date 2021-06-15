@@ -9,8 +9,8 @@ def display_valid_data(model_dir, epochs):
     history = pd.read_csv(history_path, encoding = 'UTF8')
     print(history)
 
-    acc = history['accuracy']
-    val_acc = history['val_accuracy']
+    acc = history['acc']
+    val_acc = history['val_acc']
 
     loss = history['loss']
     val_loss = history['val_loss']
