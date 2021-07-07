@@ -12,21 +12,10 @@ import kfp.onprem as onprem
 def ai_training_run(
     # Define variables that the user can set in the pipelines UI; set default values
     dataset_volume_pvc_existing: str = "dataset-vol",
-    trained_model_volume_pvc_existing: str = "kfp-model-vol",
+    trained_model_volume_pvc_existing: str = "model-vol",
     execute_data_prep_step__yes_or_no: str = "yes",
-    data_prep_step_container_image: str = "python:3",
-    # data_prep_step_command: str = "<insert command here>",
-    data_prep_step_dataset_volume_mountpoint: str = "/mnt/dataset",
-    train_step_container_image: str = "nvcr.io/nvidia/tensorflow:21.03-tf1-py3",
-    # train_step_command: str = "<insert command here>",
-    train_step_dataset_volume_mountpoint: str = "/mnt/dataset",
-    train_step_model_volume_mountpoint: str = "/mnt/model",
     train_step_epochs: int = 15,
     train_step_batch_size: int = 128,
-    validation_step_container_image: str = "python:3",
-    # validation_step_command: str = "<insert command here>",
-    validation_step_dataset_volume_mountpoint: str = "/mnt/dataset",
-    validation_step_model_volume_mountpoint: str = "/mnt/model",
 ) :
     # Set GPU limits; Due to SDK limitations, this must be hardcoded
     train_step_num_gpu = 1
@@ -38,17 +27,17 @@ def ai_training_run(
     with dsl.Condition(execute_data_prep_step__yes_or_no == "yes") :
         data_prep = dsl.ContainerOp(
             name="data-prep",
-            image=data_prep_step_container_image,
+            image="python:3",
             command=["sh", "-c"],
             arguments=["\
                 python3 -m pip install pandas && \
                 git clone https://github.com/yshimizu37/image_classification.git && \
                 chmod -R 755 image_classification &&  \
-                python3 ./image_classification/data_prep.py --datadir " + str(data_prep_step_dataset_volume_mountpoint) + "/cats_and_dogs_filtered"],
+                python3 ./image_classification/data_prep.py --datadir /mnt/dataset/cats_and_dogs_filtered"],
         )
         # Mount dataset volume/pvc
         data_prep.apply(
-            onprem.mount_pvc(dataset_volume_pvc_existing, 'dataset', data_prep_step_dataset_volume_mountpoint)
+            onprem.mount_pvc(dataset_volume_pvc_existing, 'dataset', '/mnt/dataset')
         )
 
     # Create a snapshot of the dataset volume/pvc for traceability
@@ -71,27 +60,21 @@ def ai_training_run(
     # Execute training step
     train = dsl.ContainerOp(
         name="train-model",
-        image=train_step_container_image,
+        image="nvcr.io/nvidia/tensorflow:21.03-tf1-py3",
         command=["sh", "-c"],
         arguments=["\
             python3 -m pip install pandas && \
             git clone https://github.com/yshimizu37/image_classification.git && \
             chmod -R 755 image_classification &&  \
-            echo '" + str(train_step_model_volume_mountpoint) + "/history.csv" + "' > /model_history_path.txt && \
-            python3 ./image_classification/train.py --datadir " + str(data_prep_step_dataset_volume_mountpoint) + "/cats_and_dogs_filtered --modeldir " + str(train_step_model_volume_mountpoint) + " --batchsize " + str(train_step_batch_size) + " --epochs " + str(train_step_epochs)],
-        file_outputs={
-            # "model_path": "/model_path.txt",
-            # "model_weights_path": "/model_weights_path.txt",
-            "model_history_path": "/model_history_path.txt"
-            }
+            python3 ./image_classification/train.py --datadir /mnt/dataset/cats_and_dogs_filtered --modeldir /mnt/model --batchsize " + str(train_step_batch_size) + " --epochs " + str(train_step_epochs)],
     )
     # Mount dataset volume/pvc
     train.apply(
-        onprem.mount_pvc(dataset_volume_pvc_existing, 'datavol', train_step_dataset_volume_mountpoint)
+        onprem.mount_pvc(dataset_volume_pvc_existing, 'datavol', '/mnt/dataset')
     )
     # Mount model volume/pvc
     train.apply(
-        onprem.mount_pvc(trained_model_volume_pvc_existing, 'modelvol', train_step_model_volume_mountpoint)
+        onprem.mount_pvc(trained_model_volume_pvc_existing, 'modelvol', '/mnt/model')
     )
     # Request that GPUs be allocated to training job pod
     if train_step_num_gpu > 0 :
@@ -119,21 +102,17 @@ def ai_training_run(
     # Execute inference validation job
     inference_validation = dsl.ContainerOp(
         name="validate-model",
-        image=validation_step_container_image,
+        image="python:3",
         command=["sh", "-c"],
         arguments=["\
             python3 -m pip install pandas matplotlib && \
             git clone https://github.com/yshimizu37/image_classification.git && \
             chmod -R 755 image_classification &&  \
-            python3 ./image_classification/validation.py --modeldir " + str(train_step_model_volume_mountpoint) + " --epochs=" + str(train_step_epochs)],
-    )
-    # Mount dataset volume/pvc
-    inference_validation.apply(
-        onprem.mount_pvc(dataset_volume_pvc_existing, 'datavol', validation_step_dataset_volume_mountpoint)
+            python3 ./image_classification/validation.py --modeldir /mnt/model --epochs=" + str(train_step_epochs)],
     )
     # Mount model volume/pvc
     inference_validation.apply(
-        onprem.mount_pvc(trained_model_volume_pvc_existing, 'modelvol', validation_step_model_volume_mountpoint)
+        onprem.mount_pvc(trained_model_volume_pvc_existing, 'modelvol', '/mnt/model')
     )
     # Request that GPUs be allocated to pod
     if validation_step_num_gpu > 0 :
