@@ -48,7 +48,7 @@ def ai_training_run(
         command=["/bin/bash", "-c"],
         arguments=["\
             python3 -m pip install ipython kubernetes pandas tabulate && \
-            git clone https://github.com/NetApp/netapp-data-science-toolkit && \
+            git clone -b v1.2.3 https://github.com/NetApp/netapp-data-science-toolkit && \
             mv /netapp-data-science-toolkit/Kubernetes/ntap_dsutil_k8s.py / && \
             echo '" + volume_snapshot_name + "' > /volume_snapshot_name.txt && \
             /ntap_dsutil_k8s.py create volume-snapshot --pvc-name=" + str(dataset_volume_pvc_existing) + " --snapshot-name=" + str(volume_snapshot_name) + " --namespace={{workflow.namespace}}"],
@@ -90,7 +90,7 @@ def ai_training_run(
         command=["/bin/bash", "-c"],
         arguments=["\
             python3 -m pip install ipython kubernetes pandas tabulate && \
-            git clone https://github.com/NetApp/netapp-data-science-toolkit && \
+            git clone -b v1.2.3 https://github.com/NetApp/netapp-data-science-toolkit && \
             mv /netapp-data-science-toolkit/Kubernetes/ntap_dsutil_k8s.py / && \
             echo '" + volume_snapshot_name + "' > /volume_snapshot_name.txt && \
             /ntap_dsutil_k8s.py create volume-snapshot --pvc-name=" + str(trained_model_volume_pvc_existing) + " --snapshot-name=" + str(volume_snapshot_name) + " --namespace={{workflow.namespace}}"],

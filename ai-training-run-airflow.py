@@ -33,32 +33,34 @@ ai_training_run_dag = DAG(
 )
 
 # Define Kubernetes namespace to execute DAG in
-namespace = 'airflow'
+namespace = 'airflow-git'
 
 ## Define volume details (change values as necessary to match your environment)
 
 # Dataset volume
-dataset_volume_pvc_existing = 'dataset-vol'
+dataset_volume_pvc_existing = 'gold-clone'
 dataset_volume = k8s.V1Volume(
     name=dataset_volume_pvc_existing,
     persistent_volume_claim=k8s.V1PersistentVolumeClaimVolumeSource(claim_name=dataset_volume_pvc_existing),
 )
+dataset_volume_mount_path = '/mnt/dataset'
 dataset_volume_mount = k8s.V1VolumeMount(
     name=dataset_volume_pvc_existing, 
-    mount_path='/mnt/dataset', 
+    mount_path=dataset_volume_mount_path, 
     sub_path=None, 
     read_only=False
 )
 
 # Model volume
-model_volume_pvc_existing = 'airflow-model-vol'
+model_volume_pvc_existing = ''
 model_volume = k8s.V1Volume(
     name=model_volume_pvc_existing,
     persistent_volume_claim=k8s.V1PersistentVolumeClaimVolumeSource(claim_name=model_volume_pvc_existing),
 )
+model_volume_mount_path = '/mnt/model'
 model_volume_mount = k8s.V1VolumeMount(
     name=model_volume_pvc_existing, 
-    mount_path='/mnt/model', 
+    mount_path=model_volume_mount_path, 
     sub_path=None, 
     read_only=False
 )
@@ -66,18 +68,20 @@ model_volume_mount = k8s.V1VolumeMount(
 ## Define job details (change values as needed)
 
 # Data prep step
-data_prep_step_container_image = "nvcr.io/nvidia/tensorflow:21.03-tf1-py3"
-data_prep_step_command = ["echo", "'No data prep command entered'"] # Replace this echo command with the data prep command that you wish to execute
+data_prep_step_container_image = "python:3"
+# data_prep_step_command = ["echo", "'No data prep command entered'"] # Replace this echo command with the data prep command that you wish to execute
 data_prep_step_resources = {} # Hint: To request that 1 GPU be allocated to job pod, change to: {'limit_gpu': 1}
 
 # Training step
 train_step_container_image = "nvcr.io/nvidia/tensorflow:21.03-tf1-py3"
-train_step_command = ["echo", "'No training command entered'"] # Replace this echo command with the training command that you wish to execute
-train_step_resources = {} # Hint: To request that 1 GPU be allocated to job pod, change to: {'limit_gpu': 1}
+# train_step_command = ["echo", "'No training command entered'"] # Replace this echo command with the training command that you wish to execute
+train_step_resources = {'limit_gpu': 1} # Hint: To request that 1 GPU be allocated to job pod, change to: {'limit_gpu': 1}
+train_step_batch_size = 128
+train_step_epochs = 15
 
 # Inference validation step
-validate_step_container_image = "nvcr.io/nvidia/tensorflow:21.03-tf1-py3"
-validate_step_command = ["echo", "'No inference validation command entered'"] # Replace this echo command with the inference validation command that you wish to execute
+validate_step_container_image = "python:3"
+# validate_step_command = ["echo", "'No inference validation command entered'"] # Replace this echo command with the inference validation command that you wish to execute
 validate_step_resources = {} # Hint: To request that 1 GPU be allocated to job pod, change to: {'limit_gpu': 1}
 
 ################################################################################################
@@ -96,7 +100,12 @@ with ai_training_run_dag as dag :
     data_prep = KubernetesPodOperator(
         namespace=namespace,
         image=data_prep_step_container_image,
-        cmds=data_prep_step_command,
+        cmds=["/bin/bash", "-c"],
+        arguments=["\
+                python3 -m pip install pandas && \
+                git clone https://github.com/yshimizu37/image_classification.git && \
+                chmod -R 755 image_classification &&  \
+                python3 ./image_classification/data_prep.py --datadir " + str(dataset_volume_mount_path) + "/cats_and_dogs_filtered"],
         resources = data_prep_step_resources,
         volumes=[dataset_volume, model_volume],
         volume_mounts=[dataset_volume_mount, model_volume_mount],
@@ -130,7 +139,12 @@ with ai_training_run_dag as dag :
     train = KubernetesPodOperator(
         namespace=namespace,
         image=train_step_container_image,
-        cmds=train_step_command,
+        cmds=["/bin/bash", "-c"],
+        arguments=["\
+            python3 -m pip install pandas && \
+            git clone https://github.com/yshimizu37/image_classification.git && \
+            chmod -R 755 image_classification &&  \
+            python3 ./image_classification/train.py --datadir " + str(dataset_volume_mount_path) + "/cats_and_dogs_filtered --modeldir " + str(model_volume_mount_path) + " --batchsize {{ dag_run.conf['batch_size'] }} --epochs {{ dag_run.conf['epochs'] }}"],
         resources = train_step_resources,
         volumes=[dataset_volume, model_volume],
         volume_mounts=[dataset_volume_mount, model_volume_mount],
@@ -166,7 +180,12 @@ with ai_training_run_dag as dag :
     validate = KubernetesPodOperator(
         namespace=namespace,
         image=validate_step_container_image,
-        cmds=validate_step_command,
+        cmds=["/bin/bash", "-c"],
+        arguments=["\
+            python3 -m pip install pandas matplotlib && \
+            git clone https://github.com/yshimizu37/image_classification.git && \
+            chmod -R 755 image_classification &&  \
+            python3 ./image_classification/validation.py --modeldir " + str(model_volume_mount_path) + " --epochs=" + str(train_step_epochs)],
         resources = validate_step_resources,
         volumes=[dataset_volume, model_volume],
         volume_mounts=[dataset_volume_mount, model_volume_mount],
